@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Waylo — маршруты и билеты</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1d3bd1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calm, practical travel desk — clear like station signage.
+   IDEA: a transit-line map plus ticket stubs: every trip reads as a coloured line with stations.
+   PICTURE: the live search panel on a cobalt band; each result a ticket; details a vertical route line + mini map.
+   COLOUR and TYPE: cobalt #1d3bd1 band, white paper, signal orange #ff5a2c accent; mode colours on the line. Overpass (highway lettering).
+   LAYOUT: search band full width, results row of three tickets, detail below in two columns that stack under 760px. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f6f7fb,#0d1124);--card:light-dark(#fff,#161b36);--ink:light-dark(#121633,#eef0ff);--mute:light-dark(#5a6085,#a3a9cc);
+--line:light-dark(#dfe2ef,#2a3058);--band:#1d3bd1;--band2:#1530a8;--acc:#ff5a2c;
+--air:#7b5cff;--train:#0fa37f;--bus:#ff8a00;--car:#e0397a;--local:#8a90b0;--stay:#2b8be6}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Overpass,system-ui,sans-serif;overflow-x:clip;font-variant-numeric:tabular-nums}
+a{color:inherit}
+.band{padding:clamp(22px,4vw,48px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+header.band{background:var(--band);color:#fff;padding-bottom:clamp(28px,4vw,56px)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.logo{font-weight:800;font-size:22px;letter-spacing:.01em;display:flex;align-items:center;gap:10px}
+.logo i{width:26px;height:26px;border-radius:50%;border:5px solid var(--acc);display:inline-block}
+h1{font-size:clamp(30px,4.6vw,48px);line-height:1.05;margin:0 0 6px;font-weight:800;text-wrap:balance}
+.sub{margin:0 0 22px;opacity:.85;max-width:62ch}
+select,input,button{font:inherit;font-size:16px}
+.lang{background:var(--band2);color:#fff;border:1px solid #ffffff40;border-radius:10px;padding:8px 10px;min-height:44px}
+form.s{background:var(--card);color:var(--ink);border-radius:18px;padding:18px;display:grid;gap:14px;box-shadow:0 18px 40px #0b166040}
+.row{display:grid;gap:12px;grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr)}
+.row2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+label.f{display:grid;gap:4px;font-size:13px;color:var(--mute);font-weight:600}
+.inp{display:flex;gap:6px}
+.inp input{flex:1}
+input,select.c{width:100%;min-height:48px;border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:transparent;color:var(--ink)}
+select.c option{color:#121633}
+input:focus,select:focus,button:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+.ib{min-width:48px;min-height:48px;border-radius:12px;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.swap{align-self:end}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;width:1px;height:1px}
+.chip span{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);cursor:pointer;font-weight:600}
+.chip input:checked+span{background:var(--band);border-color:var(--band);color:#fff}
+.chip input:focus-visible+span{outline:3px solid var(--acc)}
+.go{min-height:54px;border:0;border-radius:14px;background:var(--acc);color:#fff;font-weight:800;font-size:18px;cursor:pointer}
+.msg{font-size:14px;color:var(--mute);min-height:1.2em}
+.msg.err{color:var(--acc)}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+h2{font-size:26px;line-height:1.1;margin:0 0 14px}
+.tickets{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.tk{background:var(--card);border:1.5px solid var(--line);border-radius:18px;display:grid;grid-template-rows:auto 1fr;overflow:hidden;cursor:pointer;text-align:left;color:var(--ink);padding:0}
+.tk.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
+.tk .hd{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;font-weight:800;border-bottom:2px dashed var(--line)}
+.badge{font-size:13px;padding:3px 10px;border-radius:999px;background:var(--bg)}
+.tk .bd{padding:14px 16px;display:grid;gap:10px}
+.times{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.times b{font-size:30px;line-height:1}
+.times small{display:block;color:var(--mute);font-size:13px}
+.strip{display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:15px}
+.kv span:first-child{color:var(--mute)}
+.price{font-size:22px;font-weight:800;white-space:nowrap}
+.det{display:grid;gap:18px;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}
+.panel{background:var(--card);border:1.5px solid var(--line);border-radius:18px;padding:18px}
+.cd{background:var(--band);color:#fff;border-radius:18px;padding:18px;display:grid;gap:4px}
+.cd b{font-size:clamp(28px,4vw,40px);line-height:1.05;white-space:nowrap}
+ol.route{list-style:none;margin:0;padding:0}
+ol.route li{position:relative;padding:0 0 18px 34px}
+ol.route li::before{content:"";position:absolute;left:9px;top:22px;bottom:-2px;width:5px;border-radius:3px;background:var(--c,var(--line))}
+ol.route li:last-child::before{display:none}
+ol.route li::after{content:"";position:absolute;left:3px;top:4px;width:17px;height:17px;border-radius:50%;background:var(--card);border:4px solid var(--c,var(--line))}
+.lt{font-weight:800}
+.lp{color:var(--mute);font-size:14px}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 14px;border-radius:12px;border:1.5px solid var(--line);background:transparent;color:var(--ink);text-decoration:none;font-weight:600;cursor:pointer}
+.btn.p{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.ok{background:var(--train);border-color:var(--train);color:#fff}
+.vz{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.vz li{padding:10px 12px;border-radius:12px;border-left:5px solid var(--train);background:var(--bg);font-size:15px}
+.vz li.warn{border-color:var(--bus)}.vz li.need{border-color:var(--acc)}
+.fig{position:relative;min-height:260px;border-radius:14px;background:var(--bg);overflow:hidden}
+.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.note{font-size:13px;color:var(--mute)}
+.trips{display:grid;gap:10px}
+.trip{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--card)}
+.hidden{display:none!important}
+.lv{background:var(--train);color:#fff}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--mute);margin-top:8px}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+@media(max-width:760px){.det{grid-template-columns:1fr}}
+@media(max-width:520px){.row{grid-template-columns:1fr}.swap{justify-self:end;margin-top:-6px}.times b{font-size:24px}}
+@media(prefers-reduced-motion:no-preference){.tk{transition:transform .15s}.tk:hover{transform:translateY(-2px)}}
+</style>
+</head>
+<body>
+<header class="band"><div class="wrap">
+  <div class="top"><div class="logo"><i></i>Waylo</div>
+    <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="lang hidden" id="inst"></button><select id="lang" class="lang" aria-label="Language"></select></span></div>
+  <h1 data-t="h1">Куда едем?</h1>
+  <p class="sub" data-t="tag"></p>
+  <form class="s" id="f" autocomplete="off">
+    <div class="row">
+      <label class="f"><span data-t="from"></span>
+        <span class="inp"><input id="from" list="cities" required><button type="button" class="ib" id="geo" title="📍">📍</button></span></label>
+      <button type="button" class="ib swap" id="swap" aria-label="swap">⇄</button>
+      <label class="f"><span data-t="to"></span>
+        <span class="inp"><input id="to" list="cities" required><button type="button" class="ib hidden" id="mic" aria-label="mic">🎤</button></span></label>
+    </div>
+    <div class="row2">
+      <label class="f"><span data-t="whenMode"></span><select id="wmode" class="c"><option value="dep" data-t="depart"></option><option value="arr" data-t="arrive"></option></select></label>
+      <label class="f"><span data-t="when"></span><input id="when" type="datetime-local" required></label>
+      <label class="f"><span data-t="travelers"></span><input id="n" type="number" min="1" max="9" value="1"></label>
+      <label class="f"><span data-t="passport"></span><select id="pass" class="c"></select></label>
+    </div>
+    <div class="f"><span class="note" data-t="modes"></span>
+      <div class="chips" id="modes"></div></div>
+    <div class="row2">
+      <label class="f"><span data-t="rest"></span><select id="rest" class="c"><option value="none" data-t="restNone"></option><option value="breaks" data-t="restBreaks"></option><option value="night" data-t="restNight"></option></select></label>
+      <label class="f"><span data-t="maxTr"></span><select id="maxtr" class="c"><option value="9" data-t="any"></option><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></label>
+    </div>
+    <label class="chip" style="justify-self:start"><input type="checkbox" id="live" checked><span>📡 <span data-t="liveOn"></span></span></label>
+    <button class="go" data-t="search"></button>
+    <div class="msg" id="msg" role="status"></div>
+  </form>
+  <datalist id="cities"></datalist>
+</div></header>
+
+<main>
+<section class="band hidden" id="res"><div class="wrap">
+  <h2 data-t="options"></h2>
+  <div class="tickets" id="tickets"></div>
+  <p class="note" data-t="estimate"></p><p class="note" id="iosHint" hidden data-t="ios"></p>
+</div></section>
+
+<section class="band hidden" id="detail" style="padding-top:0"><div class="wrap det">
+  <div class="panel"><h2 data-t="steps"></h2><ol class="route" id="route"></ol><p class="note" data-t="tzNote"></p></div>
+  <div style="display:grid;gap:18px">
+    <div class="cd" id="cd"></div>
+    <div class="panel"><div class="fig"><svg id="map"></svg></div><div class="legend" id="legend"></div>
+      <div class="acts" id="dacts"></div></div>
+    <div class="panel"><h2 data-t="visa"></h2><ul class="vz" id="visa"></ul><div class="acts" id="vlinks"></div></div>
+    <div class="panel"><h2 data-t="docs"></h2><p style="margin:0" data-t="docsText"></p></div>
+  </div>
+</div></section>
+
+<section class="band" id="saved" style="padding-top:0"><div class="wrap">
+  <h2 data-t="myTrips"></h2><div class="trips" id="trips"></div>
+</div></section>
+</main>
+
+<script>
+{
+/* ---------- Cities: id, en, ru, country, lat, lon, tz, station, IATA, airport name, landmass, flags ---------- */
+const RAW=[
+['roeselare','Roeselare','Руселаре','BE',50.946,3.123,'Europe/Brussels','Roeselare station'],
+['kortrijk','Kortrijk','Кортрейк','BE',50.828,3.265,'Europe/Brussels','Kortrijk station'],
+['brugge','Bruges','Брюгге','BE',51.209,3.225,'Europe/Brussels','Brugge station'],
+['gent','Ghent','Гент','BE',51.054,3.717,'Europe/Brussels','Gent-Sint-Pieters'],
+['brussels','Brussels','Брюссель','BE',50.846,4.352,'Europe/Brussels','Bruxelles-Midi / Brussel-Zuid','BRU','Brussels Airport'],
+['antwerp','Antwerp','Антверпен','BE',51.219,4.402,'Europe/Brussels','Antwerpen-Centraal'],
+['liege','Liège','Льеж','BE',50.633,5.567,'Europe/Brussels','Liège-Guillemins'],
+['lille','Lille','Лилль','FR',50.629,3.057,'Europe/Paris','Lille-Europe','LIL','Lille-Lesquin'],
+['paris','Paris','Париж','FR',48.857,2.352,'Europe/Paris','Paris Gare du Nord','CDG','Paris Charles de Gaulle'],
+['lyon','Lyon','Лион','FR',45.764,4.836,'Europe/Paris','Lyon Part-Dieu','LYS','Lyon Saint-Exupéry'],
+['nice','Nice','Ницца','FR',43.710,7.262,'Europe/Paris','Nice-Ville','NCE','Nice Côte d’Azur'],
+['amsterdam','Amsterdam','Амстердам','NL',52.370,4.895,'Europe/Amsterdam','Amsterdam Centraal','AMS','Amsterdam Schiphol'],
+['rotterdam','Rotterdam','Роттердам','NL',51.924,4.478,'Europe/Amsterdam','Rotterdam Centraal','RTM','Rotterdam The Hague Airport'],
+['eindhoven','Eindhoven','Эйндховен','NL',51.441,5.470,'Europe/Amsterdam','Eindhoven Centraal','EIN','Eindhoven Airport'],
+['luxembourg','Luxembourg','Люксембург','LU',49.611,6.130,'Europe/Luxembourg','Gare de Luxembourg','LUX','Luxembourg Findel'],
+['cologne','Cologne','Кёльн','DE',50.938,6.960,'Europe/Berlin','Köln Hbf','CGN','Köln/Bonn'],
+['dusseldorf','Düsseldorf','Дюссельдорф','DE',51.227,6.774,'Europe/Berlin','Düsseldorf Hbf','DUS','Düsseldorf Airport'],
+['frankfurt','Frankfurt','Франкфурт','DE',50.110,8.682,'Europe/Berlin','Frankfurt (Main) Hbf','FRA','Frankfurt Airport'],
+['hamburg','Hamburg','Гамбург','DE',53.551,9.994,'Europe/Berlin','Hamburg Hbf','HAM','Hamburg Airport'],
+['berlin','Berlin','Берлин','DE',52.520,13.405,'Europe/Berlin','Berlin Hbf','BER','Berlin Brandenburg'],
+['dresden','Dresden','Дрезден','DE',51.050,13.738,'Europe/Berlin','Dresden Hbf','DRS','Dresden Airport'],
+['munich','Munich','Мюнхен','DE',48.137,11.575,'Europe/Berlin','München Hbf','MUC','München Airport'],
+['warsaw','Warsaw','Варшава','PL',52.230,21.012,'Europe/Warsaw','Warszawa Centralna','WAW','Warszawa Chopin'],
+['krakow','Kraków','Краков','PL',50.065,19.945,'Europe/Warsaw','Kraków Główny','KRK','Kraków Balice'],
+['wroclaw','Wrocław','Вроцлав','PL',51.108,17.039,'Europe/Warsaw','Wrocław Główny','WRO','Wrocław Airport'],
+['poznan','Poznań','Познань','PL',52.406,16.925,'Europe/Warsaw','Poznań Główny','POZ','Poznań Ławica'],
+['gdansk','Gdańsk','Гданьск','PL',54.352,18.646,'Europe/Warsaw','Gdańsk Główny','GDN','Gdańsk Airport'],
+['lodz','Łódź','Лодзь','PL',51.759,19.456,'Europe/Warsaw','Łódź Fabryczna'],
+['bialystok','Białystok','Белосток','PL',53.133,23.164,'Europe/Warsaw','Białystok station'],
+['terespol','Terespol','Тересполь','PL',52.075,23.616,'Europe/Warsaw','Terespol station'],
+['brest','Brest','Брест','BY',52.097,23.734,'Europe/Minsk','Брест-Центральный'],
+['grodno','Grodno','Гродно','BY',53.678,23.830,'Europe/Minsk','Гродно вокзал'],
+['minsk','Minsk','Минск','BY',53.904,27.562,'Europe/Minsk','Минск-Пассажирский','MSQ','Национальный аэропорт Минск','eu','lim'],
+['vilnius','Vilnius','Вильнюс','LT',54.687,25.280,'Europe/Vilnius','Vilniaus stotis','VNO','Vilnius Airport'],
+['riga','Riga','Рига','LV',56.946,24.106,'Europe/Riga','Rīgas Centrālā stacija','RIX','Riga Airport'],
+['tallinn','Tallinn','Таллин','EE',59.437,24.754,'Europe/Tallinn','Balti jaam','TLL','Tallinn Airport'],
+['kyiv','Kyiv','Киев','UA',50.450,30.523,'Europe/Kyiv','Київ-Пасажирський','KBP','Бориспіль','eu','closed'],
+['lviv','Lviv','Львов','UA',49.839,24.030,'Europe/Kyiv','Львів','LWO','Львів','eu','closed'],
+['prague','Prague','Прага','CZ',50.075,14.438,'Europe/Prague','Praha hlavní nádraží','PRG','Praha Václav Havel'],
+['vienna','Vienna','Вена','AT',48.208,16.373,'Europe/Vienna','Wien Hauptbahnhof','VIE','Wien-Schwechat'],
+['bratislava','Bratislava','Братислава','SK',48.149,17.107,'Europe/Bratislava','Bratislava hl. st.','BTS','Bratislava Airport'],
+['budapest','Budapest','Будапешт','HU',47.498,19.040,'Europe/Budapest','Budapest-Keleti','BUD','Budapest Ferenc Liszt'],
+['zurich','Zurich','Цюрих','CH',47.377,8.540,'Europe/Zurich','Zürich HB','ZRH','Zürich Airport'],
+['geneva','Geneva','Женева','CH',46.204,6.143,'Europe/Zurich','Genève-Cornavin','GVA','Genève Aéroport'],
+['milan','Milan','Милан','IT',45.464,9.190,'Europe/Rome','Milano Centrale','MXP','Milano Malpensa'],
+['rome','Rome','Рим','IT',41.903,12.496,'Europe/Rome','Roma Termini','FCO','Roma Fiumicino'],
+['barcelona','Barcelona','Барселона','ES',41.385,2.173,'Europe/Madrid','Barcelona Sants','BCN','Barcelona El Prat'],
+['madrid','Madrid','Мадрид','ES',40.417,-3.704,'Europe/Madrid','Madrid Puerta de Atocha','MAD','Madrid Barajas'],
+['lisbon','Lisbon','Лиссабон','PT',38.722,-9.139,'Europe/Lisbon','Lisboa Oriente','LIS','Lisboa Humberto Delgado'],
+['copenhagen','Copenhagen','Копенгаген','DK',55.676,12.568,'Europe/Copenhagen','København H','CPH','Copenhagen Kastrup'],
+['stockholm','Stockholm','Стокгольм','SE',59.329,18.069,'Europe/Stockholm','Stockholm Central','ARN','Stockholm Arlanda'],
+['oslo','Oslo','Осло','NO',59.913,10.752,'Europe/Oslo','Oslo S','OSL','Oslo Gardermoen'],
+['bucharest','Bucharest','Бухарест','RO',44.426,26.102,'Europe/Bucharest','București Nord','OTP','Henri Coandă'],
+['sofia','Sofia','София','BG',42.698,23.322,'Europe/Sofia','София Централна гара','SOF','Sofia Airport'],
+['belgrade','Belgrade','Белград','RS',44.787,20.457,'Europe/Belgrade','Beograd Centar','BEG','Nikola Tesla'],
+['athens','Athens','Афины','GR',37.984,23.728,'Europe/Athens','Athína (Larissis)','ATH','Athens Eleftherios Venizelos'],
+['istanbul','Istanbul','Стамбул','TR',41.008,28.978,'Europe/Istanbul','Esenler Otogarı','IST','İstanbul Airport'],
+['london','London','Лондон','GB',51.507,-0.128,'Europe/London','London St Pancras International','LHR','London Heathrow','gb'],
+['dublin','Dublin','Дублин','IE',53.350,-6.260,'Europe/Dublin','Dublin Heuston','DUB','Dublin Airport','ie'],
+['dubai','Dubai','Дубай','AE',25.205,55.271,'Asia/Dubai',null,'DXB','Dubai International','ae'],
+['newyork','New York','Нью-Йорк','US',40.713,-74.006,'America/New_York','New York Penn Station','JFK','New York JFK','us']];
+const CITIES=RAW.map(r=>({id:r[0],en:r[1],ru:r[2],cc:r[3],lat:r[4],lon:r[5],tz:r[6],st:r[7],ap:r[8]||null,apName:r[9]||'',land:r[10]||'eu',flag:r[11]||''}));
+const SCH=new Set('AT BE BG CH CZ DE DK EE ES FI FR GR HR HU IS IT LI LT LU LV MT NL NO PL PT RO SE SI SK'.split(' '));
+const EU=new Set([...SCH,'IE','CY']);['CH','NO','IS','LI'].forEach(x=>EU.delete(x));
+const RAIL={BE:['SNCB/NMBS','https://www.belgiantrain.be'],NL:['NS International','https://www.nsinternational.com'],DE:['Deutsche Bahn','https://www.bahn.de'],FR:['SNCF Connect','https://www.sncf-connect.com'],PL:['PKP Intercity','https://www.intercity.pl'],AT:['ÖBB','https://www.oebb.at'],CZ:['České dráhy','https://www.cd.cz'],IT:['Trenitalia','https://www.trenitalia.com'],ES:['Renfe','https://www.renfe.com'],CH:['SBB','https://www.sbb.ch'],GB:['Eurostar','https://www.eurostar.com'],UA:['Укрзалізниця','https://booking.uz.gov.ua'],BY:['БЖД','https://pass.rw.by']};
+const PASS=['EU','BY','UA','RU','GB','US','OTHER'];
+const MODES=['air','train','bus','car'];
+const ICON={air:'✈️',train:'🚆',bus:'🚌',car:'🚗',local:'🚕',stay:'🛏️'};
+
+/* ---------- Languages (others fall back to English) ---------- */
+const T={
+ru:{liveOn:'Реальное расписание, если есть интернет',liveTag:'расписание',liveFail:'Сервис расписаний не ответил — показаны расчётные варианты',offline:'Нет интернета — работаю офлайн, варианты расчётные',install:'📲 Установить',ios:'На iPhone: «Поделиться» → «На экран Домой», чтобы приложение работало без браузера и офлайн.',line:'Линия',h1:'Куда едем?',tag:'Самолёт, поезд, автобус и авто — в одном маршруте: быстрый, эконом и оптимальный вариант, пересадки, ночёвки, визы и покупка билетов.',from:'Откуда',to:'Куда',whenMode:'Время',depart:'Выехать после',arrive:'Прибыть до',when:'Дата и время',travelers:'Пассажиры',passport:'Гражданство',modes:'Транспорт',air:'Самолёт',train:'Поезд',bus:'Автобус',car:'Своё авто',rest:'Отдых в пути',restNone:'Без остановок',restBreaks:'Перерывы в пути',restNight:'Ночёвка в долгой поездке',maxTr:'Пересадок не больше',any:'любое',search:'Найти маршруты',locating:'Определяю, где вы…',locGps:'Вы рядом с городом {c}',locTz:'Геолокация недоступна — выбрал город по вашему часовому поясу: {c}',notFound:'Не знаю город «{c}» — выберите из списка',same:'Откуда и куда совпадают',noRoute:'Нет вариантов с такими настройками. Разрешите больше видов транспорта или пересадок.',options:'Варианты поездки',fast:'Быстрый',eco:'Эконом',mid:'Оптимальный',dur:'В пути',price:'Цена',tr:'Пересадки',direct:'без пересадок',estimate:'Цены и время ориентировочные (демо-расчёт). Точное расписание и цену покажет сайт перевозчика по кнопке «Купить».',steps:'Маршрут по шагам',tzNote:'Время везде местное для каждой точки маршрута.',visa:'Визы и въезд',docs:'Что понадобится для покупки',docsText:'Имя и фамилия латиницей — точно как в паспорте; дата рождения и гражданство; номер и срок действия паспорта (для международных автобусов, поездов и многих рейсов); e-mail и телефон; банковская карта. Приложение не хранит паспортные данные — вводите их только на сайте перевозчика.',buy:'Купить',bought:'Куплено ✓',mark:'Отметить купленным',hotel:'Найти жильё',stay:'Ночёвка',brk:'Перерыв ~15 мин возле {c}',local:'Городской транспорт / такси',center:'центр города',countdown:'До отправления',leave:'Выйдите из дома не позже',started:'Поездка уже началась',save:'Сохранить поездку',saved:'Сохранено ✓',myTrips:'Мои поездки',noTrips:'Сохранённых поездок пока нет. Найдите маршрут и нажмите «Сохранить поездку».',open:'Открыть',del:'Удалить',ics:'В календарь (.ics)',copy:'Копировать маршрут',copied:'Скопировано ✓',maps:'Открыть в Картах',total:'за всех',carCost:'топливо и платные дороги',d:'д',h:'ч',m:'мин',border:'Граница {c}: на КПП бывают многочасовые очереди — заложен запас времени.',official:'Проверить официально',passEU:'ЕС / ЕЭЗ / Швейцария',passOTHER:'Другое',passBY:'Беларусь',passUA:'Украина',passRU:'Россия',passGB:'Великобритания',passUS:'США',tunnel:'Переправа через Ла-Манш: Евротоннель или паром',overnightBus:'ночной рейс'},
+en:{liveOn:'Real timetable when online',liveTag:'timetable',liveFail:'Timetable service did not respond — showing estimated options',offline:'Offline — showing estimated options',install:'📲 Install',ios:'On iPhone: Share → Add to Home Screen to use it like an app, offline too.',line:'Line',h1:'Where to?',tag:'Plane, train, bus and car in one route: fastest, cheapest and balanced options, transfers, overnight stops, visas and ticket booking.',from:'From',to:'To',whenMode:'Time',depart:'Leave after',arrive:'Arrive by',when:'Date and time',travelers:'Travellers',passport:'Citizenship',modes:'Transport',air:'Plane',train:'Train',bus:'Bus',car:'Own car',rest:'Rest on the way',restNone:'No stops',restBreaks:'Short breaks',restNight:'Overnight on long trips',maxTr:'Max transfers',any:'any',search:'Find routes',locating:'Finding where you are…',locGps:'You are near {c}',locTz:'Location unavailable — picked a city from your time zone: {c}',notFound:'Unknown city “{c}” — pick one from the list',same:'From and To are the same',noRoute:'No options with these settings. Allow more transport types or transfers.',options:'Trip options',fast:'Fastest',eco:'Cheapest',mid:'Balanced',dur:'Duration',price:'Price',tr:'Transfers',direct:'direct',estimate:'Prices and times are estimates (demo calculation). The carrier’s site shows the exact timetable and fare via “Buy”.',steps:'Step by step',tzNote:'All times are local to each place.',visa:'Visas and entry',docs:'What you need to buy tickets',docsText:'First and last name in Latin letters exactly as in your passport; date of birth and citizenship; passport number and expiry (international buses, trains and many flights); e-mail and phone; a bank card. The app never stores passport data — enter it only on the carrier’s site.',buy:'Buy',bought:'Bought ✓',mark:'Mark as bought',hotel:'Find a stay',stay:'Overnight',brk:'~15 min break near {c}',local:'Local transport / taxi',center:'city centre',countdown:'Until departure',leave:'Leave home by',started:'The trip has started',save:'Save trip',saved:'Saved ✓',myTrips:'My trips',noTrips:'No saved trips yet. Find a route and press “Save trip”.',open:'Open',del:'Delete',ics:'Add to calendar (.ics)',copy:'Copy route',copied:'Copied ✓',maps:'Open in Maps',total:'for all',carCost:'fuel and tolls',d:'d',h:'h',m:'min',border:'{c} border: queues at the crossing can take hours — extra time is included.',official:'Check officially',passEU:'EU / EEA / Switzerland',passOTHER:'Other',passBY:'Belarus',passUA:'Ukraine',passRU:'Russia',passGB:'United Kingdom',passUS:'USA',tunnel:'Channel crossing: Eurotunnel or ferry',overnightBus:'night service'},
+uk:{liveOn:'Реальний розклад, якщо є інтернет',liveTag:'розклад',liveFail:'Сервіс розкладу не відповів — показано розрахункові варіанти',offline:'Немає інтернету — працюю офлайн',install:'📲 Встановити',ios:'На iPhone: «Поділитися» → «На екран Додому».',line:'Лінія',h1:'Куди їдемо?',tag:'Літак, потяг, автобус і авто в одному маршруті: швидкий, економ і оптимальний варіант, пересадки, ночівлі, візи та купівля квитків.',from:'Звідки',to:'Куди',whenMode:'Час',depart:'Виїхати після',arrive:'Прибути до',when:'Дата і час',travelers:'Пасажири',passport:'Громадянство',modes:'Транспорт',air:'Літак',train:'Потяг',bus:'Автобус',car:'Власне авто',rest:'Відпочинок у дорозі',restNone:'Без зупинок',restBreaks:'Перерви в дорозі',restNight:'Ночівля в довгій поїздці',maxTr:'Пересадок не більше',any:'будь-яка',search:'Знайти маршрути',locating:'Визначаю, де ви…',locGps:'Ви поруч із містом {c}',locTz:'Геолокація недоступна — обрав місто за часовим поясом: {c}',notFound:'Не знаю місто «{c}» — оберіть зі списку',same:'Звідки і куди збігаються',noRoute:'Немає варіантів із такими налаштуваннями.',options:'Варіанти поїздки',fast:'Швидкий',eco:'Економ',mid:'Оптимальний',dur:'У дорозі',price:'Ціна',tr:'Пересадки',direct:'без пересадок',steps:'Маршрут крок за кроком',visa:'Візи та в’їзд',docs:'Що знадобиться для купівлі',buy:'Купити',bought:'Куплено ✓',mark:'Позначити купленим',hotel:'Знайти житло',stay:'Ночівля',local:'Міський транспорт / таксі',center:'центр міста',countdown:'До відправлення',leave:'Вийдіть з дому не пізніше',save:'Зберегти поїздку',saved:'Збережено ✓',myTrips:'Мої поїздки',open:'Відкрити',del:'Видалити',ics:'У календар (.ics)',copy:'Копіювати маршрут',maps:'Відкрити в Картах',d:'д',h:'год',m:'хв',passEU:'ЄС / ЄЕЗ / Швейцарія',passOTHER:'Інше',passBY:'Білорусь',passUA:'Україна',passRU:'Росія',passGB:'Велика Британія',passUS:'США'},
+pl:{liveOn:'Prawdziwy rozkład, gdy jest internet',liveTag:'rozkład',liveFail:'Serwis rozkładów nie odpowiedział — pokazuję szacunki',offline:'Brak internetu — tryb offline',install:'📲 Zainstaluj',ios:'Na iPhonie: Udostępnij → Do ekranu początkowego.',line:'Linia',h1:'Dokąd jedziemy?',tag:'Samolot, pociąg, autobus i auto w jednej trasie: najszybsza, najtańsza i zrównoważona opcja, przesiadki, noclegi, wizy i bilety.',from:'Skąd',to:'Dokąd',whenMode:'Czas',depart:'Wyjazd po',arrive:'Przyjazd do',when:'Data i godzina',travelers:'Pasażerowie',passport:'Obywatelstwo',modes:'Transport',air:'Samolot',train:'Pociąg',bus:'Autobus',car:'Własne auto',rest:'Odpoczynek',restNone:'Bez postojów',restBreaks:'Krótkie przerwy',restNight:'Nocleg w długiej podróży',maxTr:'Maks. przesiadek',any:'dowolnie',search:'Szukaj tras',notFound:'Nieznane miasto „{c}”',options:'Opcje podróży',fast:'Najszybsza',eco:'Najtańsza',mid:'Optymalna',dur:'Czas',price:'Cena',tr:'Przesiadki',direct:'bez przesiadek',steps:'Trasa krok po kroku',visa:'Wizy i wjazd',docs:'Co będzie potrzebne do zakupu',buy:'Kup',bought:'Kupione ✓',mark:'Oznacz jako kupione',hotel:'Znajdź nocleg',stay:'Nocleg',local:'Komunikacja miejska / taxi',center:'centrum',countdown:'Do odjazdu',leave:'Wyjdź z domu najpóźniej',save:'Zapisz podróż',saved:'Zapisano ✓',myTrips:'Moje podróże',open:'Otwórz',del:'Usuń',ics:'Do kalendarza (.ics)',copy:'Kopiuj trasę',maps:'Otwórz w Mapach',d:'d',h:'godz',m:'min',passEU:'UE / EOG / Szwajcaria',passOTHER:'Inne',passBY:'Białoruś',passUA:'Ukraina',passRU:'Rosja',passGB:'Wielka Brytania',passUS:'USA'},
+nl:{liveOn:'Echte dienstregeling als je online bent',liveTag:'dienstregeling',liveFail:'Dienstregeling niet bereikbaar — schattingen getoond',offline:'Offline — schattingen getoond',install:'📲 Installeren',ios:'Op iPhone: Deel → Zet op beginscherm.',line:'Lijn',h1:'Waar naartoe?',tag:'Vliegtuig, trein, bus en auto in één route: snelste, goedkoopste en gebalanceerde optie, overstappen, overnachtingen, visa en tickets.',from:'Van',to:'Naar',whenMode:'Tijd',depart:'Vertrek na',arrive:'Aankomst voor',when:'Datum en tijd',travelers:'Reizigers',passport:'Nationaliteit',modes:'Vervoer',air:'Vliegtuig',train:'Trein',bus:'Bus',car:'Eigen auto',rest:'Rust onderweg',restNone:'Geen stops',restBreaks:'Korte pauzes',restNight:'Overnachten bij lange reis',maxTr:'Max. overstappen',any:'maakt niet uit',search:'Routes zoeken',options:'Reisopties',fast:'Snelste',eco:'Goedkoopste',mid:'Gebalanceerd',dur:'Reistijd',price:'Prijs',tr:'Overstappen',direct:'direct',steps:'Stap voor stap',visa:'Visa en toegang',docs:'Nodig om tickets te kopen',buy:'Kopen',bought:'Gekocht ✓',mark:'Markeer als gekocht',hotel:'Verblijf zoeken',stay:'Overnachting',local:'Lokaal vervoer / taxi',center:'centrum',countdown:'Tot vertrek',leave:'Vertrek van huis uiterlijk',save:'Reis opslaan',saved:'Opgeslagen ✓',myTrips:'Mijn reizen',open:'Openen',del:'Verwijderen',ics:'In agenda (.ics)',copy:'Route kopiëren',maps:'Openen in Kaarten',d:'d',h:'u',m:'min',passEU:'EU / EER / Zwitserland',passOTHER:'Anders',passBY:'Belarus',passUA:'Oekraïne',passRU:'Rusland',passGB:'Verenigd Koninkrijk',passUS:'VS'},
+de:{liveOn:'Echter Fahrplan, wenn online',liveTag:'Fahrplan',liveFail:'Fahrplandienst antwortet nicht — Schätzungen',offline:'Offline — Schätzungen',install:'📲 Installieren',ios:'Auf dem iPhone: Teilen → Zum Home-Bildschirm.',line:'Linie',h1:'Wohin geht’s?',tag:'Flugzeug, Zug, Bus und Auto in einer Route: schnellste, günstigste und ausgewogene Option, Umstiege, Übernachtungen, Visa und Tickets.',from:'Von',to:'Nach',whenMode:'Zeit',depart:'Abfahrt ab',arrive:'Ankunft bis',when:'Datum und Uhrzeit',travelers:'Reisende',passport:'Staatsangehörigkeit',modes:'Verkehrsmittel',air:'Flugzeug',train:'Zug',bus:'Bus',car:'Eigenes Auto',rest:'Pausen',restNone:'Keine Stopps',restBreaks:'Kurze Pausen',restNight:'Übernachten bei langer Reise',maxTr:'Max. Umstiege',any:'egal',search:'Routen suchen',options:'Reiseoptionen',fast:'Schnellste',eco:'Günstigste',mid:'Ausgewogen',dur:'Dauer',price:'Preis',tr:'Umstiege',direct:'direkt',steps:'Schritt für Schritt',visa:'Visa und Einreise',docs:'Für den Ticketkauf nötig',buy:'Kaufen',bought:'Gekauft ✓',mark:'Als gekauft markieren',hotel:'Unterkunft finden',stay:'Übernachtung',local:'Nahverkehr / Taxi',center:'Stadtzentrum',countdown:'Bis zur Abfahrt',leave:'Spätestens losgehen um',save:'Reise speichern',saved:'Gespeichert ✓',myTrips:'Meine Reisen',open:'Öffnen',del:'Löschen',ics:'In Kalender (.ics)',copy:'Route kopieren',maps:'In Karten öffnen',d:'T',h:'Std',m:'Min',passEU:'EU / EWR / Schweiz',passOTHER:'Andere',passBY:'Belarus',passUA:'Ukraine',passRU:'Russland',passGB:'Vereinigtes Königreich',passUS:'USA'},
+fr:{liveOn:'Horaires réels si connecté',liveTag:'horaires',liveFail:'Service d’horaires indisponible — estimations',offline:'Hors ligne — estimations',install:'📲 Installer',ios:'Sur iPhone : Partager → Sur l’écran d’accueil.',line:'Ligne',h1:'On va où ?',tag:'Avion, train, bus et voiture dans un seul itinéraire : options rapide, économique et équilibrée, correspondances, nuits, visas et billets.',from:'Départ',to:'Arrivée',whenMode:'Horaire',depart:'Partir après',arrive:'Arriver avant',when:'Date et heure',travelers:'Voyageurs',passport:'Nationalité',modes:'Transport',air:'Avion',train:'Train',bus:'Bus',car:'Ma voiture',rest:'Pauses',restNone:'Sans arrêt',restBreaks:'Courtes pauses',restNight:'Nuit en route si long',maxTr:'Correspondances max.',any:'peu importe',search:'Chercher',options:'Options de voyage',fast:'Rapide',eco:'Économique',mid:'Équilibré',dur:'Durée',price:'Prix',tr:'Correspondances',direct:'direct',steps:'Étape par étape',visa:'Visas et entrée',docs:'Pour acheter les billets',buy:'Acheter',bought:'Acheté ✓',mark:'Marquer acheté',hotel:'Trouver un hébergement',stay:'Nuit',local:'Transport local / taxi',center:'centre-ville',countdown:'Avant le départ',leave:'Quittez la maison au plus tard',save:'Enregistrer',saved:'Enregistré ✓',myTrips:'Mes voyages',open:'Ouvrir',del:'Supprimer',ics:'Au calendrier (.ics)',copy:'Copier l’itinéraire',maps:'Ouvrir dans Plans',d:'j',h:'h',m:'min',passEU:'UE / EEE / Suisse',passOTHER:'Autre',passBY:'Biélorussie',passUA:'Ukraine',passRU:'Russie',passGB:'Royaume-Uni',passUS:'États-Unis'}};
+const LN={ru:'Русский',uk:'Українська',en:'English',pl:'Polski',nl:'Nederlands',de:'Deutsch',fr:'Français'};
+const VT={
+ru:{home:'{c}: страна вашего гражданства.',freeEU:'{c}: свобода передвижения ЕС — достаточно паспорта или ID-карты.',free:'{c}: обычно без визы для вашего гражданства (как правило, до 90 дней).',sv:'{c}: нужна шенгенская виза (тип C) или вид на жительство страны Шенгена.',visa:'{c}: нужна виза — оформляйте заранее.',eta:'{c}: нужно электронное разрешение ETA — оформляется онлайн до поездки.',esta:'{c}: нужно разрешение ESTA (для безвизовых стран) — онлайн, минимум за 72 часа.',uaFree:'{c}: с биометрическим паспортом — без визы до 90 дней из 180 (или по статусу временной защиты).',restr:'{c}: въезд ограничен или действуют особые правила (военное положение, закрытые пункты пропуска). Проверьте до покупки.',check:'{c}: правила зависят от гражданства — проверьте перед покупкой.',etias:'Шенген: для безвизовых иностранцев вводится ETIAS (запуск ожидается в конце 2026 г.) — проверьте, нужен ли он на дату поездки.',note:'Это подсказка, а не юридическая гарантия: правила меняются, перед поездкой сверяйтесь с официальными источниками.'},
+en:{home:'{c}: your country of citizenship.',freeEU:'{c}: EU free movement — passport or ID card is enough.',free:'{c}: usually visa-free for your citizenship (typically up to 90 days).',sv:'{c}: Schengen visa (type C) or a Schengen residence permit required.',visa:'{c}: visa required — apply in advance.',eta:'{c}: Electronic Travel Authorisation (ETA) required — apply online before travel.',esta:'{c}: ESTA required for visa-waiver countries — apply online at least 72 h ahead.',uaFree:'{c}: visa-free up to 90 days in 180 with a biometric passport (or under temporary protection).',restr:'{c}: entry restricted or special rules apply (martial law, closed crossings). Check before buying.',check:'{c}: rules depend on citizenship — check before buying.',etias:'Schengen: ETIAS is being introduced for visa-exempt visitors (launch expected late 2026) — check whether it applies on your travel date.',note:'This is guidance, not a legal guarantee: rules change, confirm with official sources before travel.'}};
+VT.uk=VT.ru;
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+let LANG='ru';
+const tr=(k,v)=>{let s=(T[LANG]&&T[LANG][k])??T.en[k]??T.ru[k]??k;if(v)for(const x in v)s=s.replace('{'+x+'}',v[x]);return s};
+const vt=(k,v)=>{const L=VT[LANG]||VT.en;let s=L[k]||VT.en[k];for(const x in v||{})s=s.replace('{'+x+'}',v[x]);return s};
+const nm=c=>['ru','uk'].includes(LANG)?c.ru:c.en;
+const cname=cc=>{try{return new Intl.DisplayNames([LANG],{type:'region'}).of(cc)}catch(e){return cc}};
+const R=Math.PI/180;
+const dist=(a,b)=>{const x=Math.sin((b.lat-a.lat)*R/2)**2+Math.cos(a.lat*R)*Math.cos(b.lat*R)*Math.sin((b.lon-a.lon)*R/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+const addH=(d,h)=>new Date(d.getTime()+h*36e5);
+const hash=s=>{let h=7;for(const ch of s)h=(h*31+ch.charCodeAt(0))>>>0;return h};
+const pad=n=>String(n).padStart(2,'0');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function tzOff(d,tz){const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(d);const g=t=>+p.find(x=>x.type===t).value;return Date.UTC(g('year'),g('month')-1,g('day'),g('hour'),g('minute'),g('second'))-d.getTime()}
+function z2u(str,tz){const g=new Date(str+':00Z');const o=tzOff(g,tz);let d=new Date(g-o);const o2=tzOff(d,tz);if(o2!==o)d=new Date(g-o2);return d}
+const ldate=(d,tz)=>new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+const lhour=(d,tz)=>+new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',hour:'2-digit'}).format(d);
+const fT=(d,tz)=>new Intl.DateTimeFormat(LANG,{hour:'2-digit',minute:'2-digit',timeZone:tz}).format(d);
+const fD=(d,tz)=>new Intl.DateTimeFormat(LANG,{weekday:'short',day:'numeric',month:'short',timeZone:tz}).format(d);
+const money=v=>new Intl.NumberFormat(LANG,{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(v);
+const fDur=ms=>{let m=Math.max(0,Math.round(ms/6e4));const d=Math.floor(m/1440);m-=d*1440;const h=Math.floor(m/60);m-=h*60;return (d?d+' '+tr('d')+' ':'')+(h?h+' '+tr('h')+' ':'')+m+' '+tr('m')};
+const enc=encodeURIComponent;
+
+/* ---------- routing engine ---------- */
+const landOK=(a,b)=>a.land===b.land||(['eu','gb'].includes(a.land)&&['eu','gb'].includes(b.land));
+const borderH=(a,b)=>{const s=new Set([a.cc,b.cc]);if(s.has('BY')&&s.size>1)return 5;if(s.has('UA')&&s.size>1)return 3;return 0};
+function groundOK(mode,a,b){if(!a.st||!b.st||!landOK(a,b))return false;
+  if(mode==='train'){if((a.cc==='BY')!==(b.cc==='BY'))return false;if((a.land==='gb')!==(b.land==='gb')&&!['FR','BE','NL','GB'].includes(a.cc==='GB'?b.cc:a.cc))return false}
+  return true}
+function hub(a,b,mode){const D=dist(a,b);let best=null,bd=1e9;for(const h of CITIES){if(h===a||h===b||!h.st||!landOK(h,a))continue;const x=dist(a,h),y=dist(h,b);if(x<.28*D||y<.28*D)continue;if(mode!=='car'&&(!groundOK(mode,a,h)||!groundOK(mode,h,b)))continue;const det=x+y-D+(h.ap?0:40);if(det<bd){bd=det;best=h}}return bd<.35*D?best:null}
+function slot(t,slots,c,key){const off=hash(key)%17;for(let day=0;day<5;day++){const ds=ldate(addH(t,24*day),c.tz);for(const s of slots){const mm=Math.round(s*60)+off;const d=z2u(`${ds}T${pad(Math.floor(mm/60))}:${pad(mm%60)}`,c.tz);if(d>=t)return d}}return t}
+const SL={air:[6.5,9.25,12,15.5,18.75,21.25],train:Array.from({length:17},(_,i)=>5.1+i),bus:[7,9.5,13,16,20,22.5]};
+function morning(t,c){const ds=ldate(lhour(t,c.tz)<5?t:addH(t,24),c.tz);return z2u(ds+'T08:00',c.tz)}
+function links(mode,a,b,dep,P){const d=ldate(dep,a.tz);
+  if(mode==='air')return[['Google Flights',`https://www.google.com/travel/flights?q=${enc(`Flights from ${a.ap} to ${b.ap} on ${d} for ${P.n} adults`)}`],['Skyscanner',`https://www.skyscanner.net/transport/flights/${a.ap.toLowerCase()}/${b.ap.toLowerCase()}/${d.slice(2).replace(/-/g,'')}/?adultsv2=${P.n}`]];
+  if(mode==='train'){const op=RAIL[a.land==='gb'||b.land==='gb'?'GB':a.cc]||['Trainline','https://www.thetrainline.com'];return[op,['Rome2Rio',`https://www.rome2rio.com/map/${enc(a.en)}/${enc(b.en)}`]]}
+  if(mode==='bus')return[['FlixBus','https://global.flixbus.com'],['Rome2Rio',`https://www.rome2rio.com/map/${enc(a.en)}/${enc(b.en)}`]];
+  if(mode==='car')return[['Google Maps',`https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lon}&destination=${b.lat},${b.lon}&travelmode=driving`]];
+  return[['Google Maps',`https://www.google.com/maps/dir/?api=1&origin=${enc(a.st||a.en)}&destination=${enc(b.apName||b.en)}&travelmode=transit`]]}
+function gLeg(mode,a,b,t,P){const km=dist(a,b)*(mode==='train'?1.25:1.2);const bh=borderH(a,b);let dur,price,dep;
+  if(mode==='train'){dur=km/(km>250?120:80)+.2+bh*.5;price=(6+.1*km)*P.n;dep=slot(t,SL.train,a,a.id+b.id)}
+  else{dur=km/65+bh;price=(5+.045*km)*P.n;dep=slot(t,SL.bus,a,b.id+a.id)}
+  const arr=addH(dep,dur);const notes=[];if(bh)notes.push(tr('border',{c:cname(a.cc==='PL'||EU.has(a.cc)?b.cc:a.cc)}));if(mode==='bus'&&lhour(dep,a.tz)>=20&&dur>6)notes.push(tr('overnightBus'));if(a.land!==b.land)notes.push(tr('tunnel'));
+  return{mode,a,b,fp:a.st,tp:b.st,dep,arr,price,links:links(mode,a,b,dep,P),notes}}
+function stayLeg(c,t,P){const e=morning(t,c);return{mode:'stay',a:c,b:c,fp:nm(c),tp:'',dep:t,arr:e,price:55*Math.ceil(P.n/2),links:[['Booking.com',`https://www.booking.com/searchresults.html?ss=${enc(c.en)}&checkin=${ldate(t,c.tz)}&checkout=${ldate(e,c.tz)}&group_adults=${P.n}`]],notes:[]}}
+function chainG(mode,A,B,start,P,allowNight=true){if(!groundOK(mode,A,B))return null;const D=dist(A,B);const st=[A];
+  const ES=['london','brussels','lille','paris','amsterdam','rotterdam'];
+  if(mode==='train'&&A.land!==B.land){const x=A.land==='gb'?B:A;if(!ES.includes(x.id)){const h=CITIES.filter(c=>ES.includes(c.id)&&c.land!=='gb').sort((p,q)=>dist(x,p)-dist(x,q))[0];if(x===A)st.push(h);else{st.push(h)}}}
+  else if(D>(mode==='train'?650:1000)){const h=hub(A,B,mode);if(!h)return null;st.push(h)}st.push(B);
+  let t=start,legs=[];for(let i=0;i<st.length-1;i++){if(i>0){t=addH(t,.33);if(allowNight&&P.rest==='night'&&(lhour(t,st[i].tz)>=21||lhour(t,st[i].tz)<5||(t-legs[0].dep)>10*36e5)){const s=stayLeg(st[i],t,P);legs.push(s);t=s.arr}}
+    const L=gLeg(mode,st[i],st[i+1],t,P);legs.push(L);t=L.arr}return legs}
+function localLeg(c,toAirport,t,P){const L={mode:'local',a:c,b:c,fp:toAirport?(c.st||nm(c)):c.apName,tp:toAirport?c.apName:tr('center'),dep:t,arr:addH(t,.75),price:7*P.n,notes:[]};L.links=[['Google Maps',`https://www.google.com/maps/dir/?api=1&origin=${enc(L.fp+' '+c.en)}&destination=${enc(L.tp+' '+c.en)}&travelmode=transit`]];return L}
+function airport(c,other){const ok=x=>x.ap&&x.flag!=='closed'&&!(x.flag==='lim'&&!['BY','RU','TR','AE'].includes(other.cc));if(ok(c))return c;return CITIES.filter(x=>ok(x)&&x.land===c.land&&groundOK('bus',c,x)).sort((x,y)=>dist(c,x)-dist(c,y)).find(x=>dist(c,x)<650)||null}
+function feeder(X,Y,t,P){return chainG('train',X,Y,t,P,false)||chainG('bus',X,Y,t,P,false)}
+const B={
+air(A,Bc,start,P){const o=airport(A,Bc),d=airport(Bc,A);if(!o||!d||o===d)return null;if(dist(A,Bc)<320&&landOK(A,Bc))return null;
+  let t=start,legs=[];if(o!==A){const f=feeder(A,o,t,P);if(!f)return null;legs.push(...f);t=f.at(-1).arr}
+  legs.push(localLeg(o,true,t,P));t=legs.at(-1).arr;const km=dist(o,d);const dep=slot(addH(t,2),SL.air,o,o.ap+d.ap);
+  legs.push({mode:'air',a:o,b:d,fp:`${o.apName} (${o.ap})`,tp:`${d.apName} (${d.ap})`,dep,arr:addH(dep,km/800+.7),price:(30+(km>4000?.06:.075)*km)*P.n,links:links('air',o,d,dep,P),notes:[]});
+  t=addH(legs.at(-1).arr,.4);legs.push(localLeg(d,false,t,P));t=legs.at(-1).arr;
+  if(d!==Bc){const f=feeder(d,Bc,t,P);if(!f)return null;legs.push(...f)}return legs},
+train:(A,Bc,s,P)=>chainG('train',A,Bc,s,P),
+bus:(A,Bc,s,P)=>chainG('bus',A,Bc,s,P),
+car(A,Bc,start,P){if(!landOK(A,Bc)||A.land==='ie'||Bc.land==='ie')return null;const parts=[A];const drive=dist(A,Bc)*1.2/85+borderH(A,Bc);
+  if(P.rest==='night'&&drive>9){const h=hub(A,Bc,'car');if(h)parts.push(h)}parts.push(Bc);let t=start,legs=[];
+  for(let i=0;i<parts.length-1;i++){const a=parts[i],b=parts[i+1];if(i>0){const s=stayLeg(a,t,P);legs.push(s);t=s.arr}
+    const km=dist(a,b)*1.2,dh=km/85+borderH(a,b);const brk=[];if(P.rest!=='none'){for(let k=1;k*2.5<dh;k++){const f=k*2.5/dh;const p={lat:a.lat+(b.lat-a.lat)*f,lon:a.lon+(b.lon-a.lon)*f};const nc=CITIES.filter(c=>c.land===a.land||c.land===b.land).sort((x,y)=>dist(p,x)-dist(p,y))[0];brk.push(tr('brk',{c:nm(nc)}))}}
+    const notes=[...new Set(brk)];notes.push(tr('carCost'));if(borderH(a,b))notes.push(tr('border',{c:cname(EU.has(a.cc)?b.cc:a.cc)}));if(a.land!==b.land)notes.push(tr('tunnel'));
+    const L={mode:'car',a,b,fp:nm(a),tp:nm(b),dep:t,arr:addH(t,dh+brk.length*.25),price:km*.11,links:links('car',a,b,t,P),notes};legs.push(L);t=L.arr}return legs}};
+function wrap(kind,legs){if(!legs||!legs.length)return null;const sch=legs.filter(l=>['air','train','bus'].includes(l.mode)).length;return{kind,legs,dep:legs[0].dep,arr:legs.at(-1).arr,price:legs.reduce((s,l)=>s+l.price,0),tr:Math.max(0,sch-1)}}
+function plan(P,raw){const out=[];for(const m of MODES){if(!P.modes.includes(m))continue;let it=null;
+  if(P.wmode==='dep')it=wrap(m,B[m](P.A,P.B,P.t,P));
+  else{for(let h=96;h>=0;h-=1){const c=wrap(m,B[m](P.A,P.B,addH(P.t,-h),P));if(c&&c.arr<=P.t&&(!it||c.dep>=it.dep))it=c}}
+  if(it&&(it.tr<=P.maxtr||m==='car'))out.push(it)}
+  if(raw)return out;
+  if(!out.length)return[];const dur=x=>x.arr-x.dep;const fast=out.reduce((a,b)=>dur(b)<dur(a)?b:a);const eco=out.reduce((a,b)=>b.price<a.price?b:a);
+  const md=Math.min(...out.map(dur)),mp=Math.min(...out.map(x=>x.price));const rest=out.filter(x=>x!==fast&&x!==eco);
+  const mid=(rest.length?rest:out).reduce((a,b)=>dur(b)/md+b.price/mp<dur(a)/md+a.price/mp?b:a);
+  const res=[{tag:'fast',it:fast},{tag:'mid',it:mid},{tag:'eco',it:eco}];const seen=new Map();
+  for(const r of res){if(seen.has(r.it))seen.get(r.it).tags.push(r.tag);else seen.set(r.it,{tags:[r.tag],it:r.it})}return[...seen.values()]}
+
+/* ---------- live timetable (Transitous, free open API, no key, no own server) ---------- */
+const LM={AIRPLANE:'air',BUS:'bus',COACH:'bus',FERRY:'bus',RAIL:'train',HIGHSPEED_RAIL:'train',LONG_DISTANCE:'train',NIGHT_RAIL:'train',REGIONAL_RAIL:'train',REGIONAL_FAST_RAIL:'train',SUBURBAN:'train',METRO:'local',SUBWAY:'local',TRAM:'local',CABLE_CAR:'local',FUNICULAR:'local',WALK:'local',BIKE:'local',CAR:'local'};
+async function livePlan(P){const q=new URLSearchParams({fromPlace:`${P.A.lat},${P.A.lon}`,toPlace:`${P.B.lat},${P.B.lon}`,time:P.t.toISOString(),arriveBy:String(P.wmode==='arr'),numItineraries:'5'});
+  const ctl=new AbortController();const to=setTimeout(()=>ctl.abort(),9000);
+  try{const r=await fetch('https://api.transitous.org/api/v1/plan?'+q,{signal:ctl.signal});if(!r.ok)throw new Error(r.status);const j=await r.json();
+    return(j.itineraries||[]).map(x=>{const legs=(x.legs||[]).map(l=>{const mode=LM[l.mode]||'bus';const fa=l.from||{},ta=l.to||{};
+      const a=nearest({lat:fa.lat??P.A.lat,lon:fa.lon??P.A.lon}),b=nearest({lat:ta.lat??P.B.lat,lon:ta.lon??P.B.lon});const dep=new Date(l.startTime||fa.departure),arr=new Date(l.endTime||ta.arrival);
+      if(isNaN(dep)||isNaN(arr))return null;if(mode==='local'&&arr-dep<10*6e4)return null;const km=Math.hypot(1,0)*dist({lat:fa.lat??a.lat,lon:fa.lon??a.lon},{lat:ta.lat??b.lat,lon:ta.lon??b.lon});
+      const price=mode==='train'?(6+.125*km)*P.n:mode==='bus'?(5+.054*km)*P.n:mode==='air'?(30+.075*km)*P.n:2*P.n;
+      const nm2=[l.routeShortName,l.agencyName,l.headsign&&('→ '+l.headsign)].filter(Boolean).join(' · ');
+      return{mode,a,b,fp:fa.name||nm(a),tp:ta.name||nm(b),dep,arr,price,live:true,links:links(mode==='air'&&a.ap&&b.ap?'air':mode==='local'?'local':mode,a,b,dep,P),notes:nm2?[tr('line')+': '+nm2]:[]}}).filter(Boolean);
+      if(!legs.length)return null;const main=legs.reduce((m,l)=>(l.arr-l.dep)>(m.arr-m.dep)?l:m,legs[0]);const it=wrap(main.mode==='local'?'train':main.mode,legs);it.live=true;return it}).filter(Boolean)}
+  finally{clearTimeout(to)}}
+function pick(out){if(!out.length)return[];const dur=x=>x.arr-x.dep;const fast=out.reduce((a,b)=>dur(b)<dur(a)?b:a);const eco=out.reduce((a,b)=>b.price<a.price?b:a);
+  const md=Math.min(...out.map(dur)),mp=Math.min(...out.map(x=>x.price));const rest=out.filter(x=>x!==fast&&x!==eco);
+  const mid=(rest.length?rest:out).reduce((a,b)=>dur(b)/md+b.price/mp<dur(a)/md+a.price/mp?b:a);const seen=new Map();
+  for(const r of [{tag:'fast',it:fast},{tag:'mid',it:mid},{tag:'eco',it:eco}]){if(seen.has(r.it))seen.get(r.it).tags.push(r.tag);else seen.set(r.it,{tags:[r.tag],it:r.it})}return[...seen.values()]}
+async function planAll(P){const est=plan(P,true);let live=[];let note='';
+  if(P.live){if(navigator.onLine===false)note=tr('offline');else{try{live=(await livePlan(P)).filter(it=>it.tr<=P.maxtr&&it.legs.every(l=>P.modes.includes(l.mode)||l.mode==='local'))}catch(e){note=tr('liveFail')}}}
+  const liveModes=new Set(live.map(i=>i.kind));const all=[...live,...est.filter(i=>!(liveModes.has(i.kind)&&['train','bus'].includes(i.kind)))];return{res:pick(all),note}}
+
+/* ---------- visas ---------- */
+function vrule(p,cc){const S=SCH.has(cc),E=EU.has(cc)||S;if(p===cc)return['ok','home'];
+  switch(p){case'EU':if(E)return['ok','freeEU'];if(cc==='GB')return['warn','eta'];if(cc==='US')return['warn','esta'];if(['BY','UA','RU'].includes(cc))return['need','restr'];return['warn','check'];
+  case'BY':if(cc==='RU')return['ok','free'];if(S)return['need','sv'];if(E||cc==='GB'||cc==='US')return['need','visa'];if(cc==='UA')return['need','restr'];return['warn','check'];
+  case'UA':if(E)return['ok','uaFree'];if(cc==='GB'||cc==='US')return['need','visa'];if(cc==='BY'||cc==='RU')return['need','restr'];return['warn','check'];
+  case'RU':if(cc==='BY')return['ok','free'];if(S)return['need','sv'];if(E||cc==='GB'||cc==='US')return['need','visa'];if(cc==='UA')return['need','restr'];return['warn','check'];
+  case'GB':if(E)return['ok','free'];if(cc==='US')return['warn','esta'];if(cc==='UA')return['need','restr'];return['warn','check'];
+  case'US':if(E)return['ok','free'];if(cc==='GB')return['warn','eta'];if(cc==='UA')return['need','restr'];return['warn','check'];
+  default:return['warn','check']}}
+function visas(it,p){const ccs=[...new Set(it.legs.flatMap(l=>[l.a.cc,l.b.cc]))];const out=ccs.map(cc=>{const[l,k]=vrule(p,cc);return{l,t:vt(k,{c:cname(cc)})}});
+  if(['GB','US','UA','OTHER'].includes(p)&&ccs.some(c=>SCH.has(c)))out.push({l:'warn',t:vt('etias')});out.push({l:'warn',t:vt('note')});return{out,ccs}}
+
+/* ---------- UI ---------- */
+const st={res:[],sel:null,P:null};
+let store=null;try{localStorage.setItem('_w','1');store=localStorage}catch(e){}
+const getTrips=()=>{try{return JSON.parse(store?.getItem('waylo.trips')||'[]')}catch(e){return[]}};
+const setTrips=a=>{try{store?.setItem('waylo.trips',JSON.stringify(a))}catch(e){}};
+const findCity=s=>{s=(s||'').toLowerCase().replace(/\(.*\)/,'').trim();return CITIES.find(c=>[c.id,c.en,c.ru].some(x=>x.toLowerCase()===s))||CITIES.find(c=>s&&[c.en,c.ru].some(x=>x.toLowerCase().startsWith(s)))};
+function applyLang(){document.documentElement.lang=LANG;document.querySelectorAll('[data-t]').forEach(e=>e.textContent=tr(e.dataset.t));
+  $('#cities').innerHTML=CITIES.map(c=>`<option value="${esc(nm(c))}">${esc(cname(c.cc))}</option>`).join('');
+  const pv=$('#pass').value||'EU';$('#pass').innerHTML=PASS.map(p=>`<option value="${p}">${esc(tr('pass'+p))}</option>`).join('');$('#pass').value=pv;
+  const on=new Set([...document.querySelectorAll('#modes input:checked')].map(i=>i.value));const first=!document.querySelector('#modes input');
+  $('#modes').innerHTML=MODES.map(m=>`<label class="chip"><input type="checkbox" value="${m}" ${(first?m!=='car':on.has(m))?'checked':''}><span>${ICON[m]} ${esc(tr(m))}</span></label>`).join('');
+  ['from','to'].forEach(id=>{const c=findCity($('#'+id).value);if(c)$('#'+id).value=nm(c)});
+  if(st.res.length)renderRes();renderTrips()}
+$('#lang').innerHTML=Object.entries(LN).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+{let saved=null;try{saved=store?.getItem('waylo.lang')}catch(e){}const nav=(navigator.language||'en').slice(0,2);LANG=saved||(T[nav]?nav:(nav==='be'?'ru':'en'))}
+$('#lang').value=LANG;$('#lang').onchange=e=>{LANG=e.target.value;try{store?.setItem('waylo.lang',LANG)}catch(x){}applyLang()};
+{const d=new Date(Date.now()+36e5);d.setMinutes(0);$('#when').value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`}
+const msg=(t,err)=>{$('#msg').textContent=t;$('#msg').className='msg'+(err?' err':'')};
+function nearest(p){return CITIES.slice().sort((a,b)=>dist(p,a)-dist(p,b))[0]}
+function byTz(){const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;const m=CITIES.filter(c=>c.tz===tz);const cap={'Europe/Brussels':'brussels','Europe/Warsaw':'warsaw','Europe/Berlin':'berlin','Europe/Paris':'paris','Europe/Amsterdam':'amsterdam','Europe/London':'london','Europe/Minsk':'minsk','Europe/Kyiv':'kyiv','Europe/Rome':'rome','Europe/Madrid':'madrid'};return CITIES.find(c=>c.id===cap[tz])||m[0]||null}
+function locate(){msg(tr('locating'));const fb=()=>{const c=byTz();if(c){$('#from').value=nm(c);msg(tr('locTz',{c:nm(c)}))}else msg('')};
+  if(!navigator.geolocation)return fb();let done=false;const to=setTimeout(()=>{if(!done){done=true;fb()}},5000);
+  try{navigator.geolocation.getCurrentPosition(p=>{if(done)return;done=true;clearTimeout(to);const c=nearest({lat:p.coords.latitude,lon:p.coords.longitude});$('#from').value=nm(c);msg(tr('locGps',{c:nm(c)}))},()=>{if(!done){done=true;clearTimeout(to);fb()}},{timeout:4500,maximumAge:6e5})}catch(e){if(!done){done=true;clearTimeout(to);fb()}}}
+$('#geo').onclick=locate;
+$('#swap').onclick=()=>{const a=$('#from').value;$('#from').value=$('#to').value;$('#to').value=a};
+$('#f').onsubmit=async e=>{e.preventDefault();const A=findCity($('#from').value),Bc=findCity($('#to').value);
+  if(!A)return msg(tr('notFound',{c:$('#from').value}),1);if(!Bc)return msg(tr('notFound',{c:$('#to').value}),1);if(A===Bc)return msg(tr('same'),1);
+  const tc=$('#wmode').value==='dep'?A:Bc;const P={A,B:Bc,wmode:$('#wmode').value,t:z2u($('#when').value,tc.tz),n:Math.max(1,Math.min(9,+$('#n').value||1)),pass:$('#pass').value,
+    modes:[...document.querySelectorAll('#modes input:checked')].map(i=>i.value),rest:$('#rest').value,maxtr:+$('#maxtr').value,live:$('#live').checked};
+  st.P=P;msg(P.live?'📡 …':'');const go=$('.go');go.disabled=true;
+  try{const r=await planAll(P);st.res=r.res;st.sel=st.res[0]||null;msg(st.res.length?r.note:tr('noRoute'),!st.res.length)}finally{go.disabled=false}
+  renderRes();if(st.res.length)$('#res').scrollIntoView({behavior:'smooth'})};
+const COL=m=>`var(--${m})`;
+function strip(it){const tot=it.arr-it.dep;return it.legs.map(l=>`<i style="flex:${Math.max(.02,(l.arr-l.dep)/tot)};background:${COL(l.mode)}"></i>`).join('')}
+function renderRes(){$('#res').classList.toggle('hidden',!st.res.length);$('#detail').classList.toggle('hidden',!st.sel);
+  $('#tickets').innerHTML=st.res.map((r,i)=>{const it=r.it,A=it.legs[0].a,Z=it.legs.at(-1).b;const icons=[...new Set(it.legs.map(l=>l.mode).filter(m=>m!=='local'))].map(m=>ICON[m]).join(' ');
+    return`<button type="button" class="tk ${r===st.sel?'on':''}" data-i="${i}"><div class="hd"><span>${r.tags.map(t=>esc(tr(t))).join(' · ')}</span><span>${it.live?`<span class="badge lv">📡 ${esc(tr('liveTag'))}</span> `:''}<span class="badge">${icons}</span></span></div>
+    <div class="bd"><div class="times"><span><b>${fT(it.dep,A.tz)}</b><small>${esc(fD(it.dep,A.tz))} · ${esc(nm(A))}</small></span><span style="text-align:right"><b>${fT(it.arr,Z.tz)}</b><small>${esc(fD(it.arr,Z.tz))} · ${esc(nm(Z))}</small></span></div>
+    <div class="strip">${strip(it)}</div><div class="kv"><span>${esc(tr('dur'))}</span><span>${fDur(it.arr-it.dep)}</span></div>
+    <div class="kv"><span>${esc(tr('tr'))}</span><span>${it.tr?it.tr:esc(tr('direct'))}</span></div><div class="kv"><span>${esc(tr('price'))}</span><span class="price">≈ ${money(it.price)}</span></div></div></button>`}).join('');
+  document.querySelectorAll('.tk').forEach(b=>b.onclick=()=>{st.sel=st.res[+b.dataset.i];renderRes();$('#detail').scrollIntoView({behavior:'smooth'})});
+  if(st.sel)renderDetail(st.sel.it,st.P.pass,null)}
+function legHTML(l,i,boughtSet){const z1=l.a.tz,z2=l.b.tz;const head=l.mode==='stay'?`${ICON.stay} ${esc(tr('stay'))} — ${esc(nm(l.a))}`:l.mode==='local'?`${ICON.local} ${esc(tr('local'))}`:`${ICON[l.mode]} ${esc(nm(l.a))} → ${esc(nm(l.b))}`;
+  const when=l.mode==='stay'?`${fD(l.dep,z1)} ${fT(l.dep,z1)} – ${fD(l.arr,z1)} ${fT(l.arr,z1)}`:`${fT(l.dep,z1)} ${esc(l.fp)} → ${fT(l.arr,z2)} ${esc(l.tp)}`;
+  const buyable=['air','train','bus','stay'].includes(l.mode);const b=boughtSet&&boughtSet.has(i);
+  return`<li style="--c:${COL(l.mode)}"><div class="lt">${head}</div><div class="lp">${esc(fD(l.dep,z1))} · ${when} · ${fDur(l.arr-l.dep)} · ≈ ${money(l.price)}</div>
+  ${l.notes.map(n=>`<div class="lp">• ${esc(n)}</div>`).join('')}
+  <div class="acts">${l.links.map((k,j)=>`<a class="btn ${j===0&&buyable?'p':''}" href="${esc(k[1])}" target="_blank" rel="noopener">${j===0&&buyable?esc(l.mode==='stay'?tr('hotel'):tr('buy'))+' · ':''}${esc(k[0])}</a>`).join('')}
+  ${buyable&&boughtSet?`<button class="btn ${b?'ok':''}" data-b="${i}">${esc(b?tr('bought'):tr('mark'))}</button>`:''}</div></li>`}
+let tick=null,curTrip=null;
+function renderDetail(it,pass,trip){curTrip=trip;const bs=trip?new Set(trip.bought||[]):new Set();
+  $('#route').innerHTML=it.legs.map((l,i)=>legHTML(l,i,trip?bs:bs)).join('');
+  $('#route').querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>{const i=+b.dataset.b;bs.has(i)?bs.delete(i):bs.add(i);if(trip){trip.bought=[...bs];const all=getTrips().map(x=>x.id===trip.id?trip:x);setTrips(all);renderTrips()}else{st.bought=bs}renderDetail(it,pass,trip||null);if(!trip){}});
+  const first=it.legs.find(l=>['air','train','bus','car'].includes(l.mode))||it.legs[0];const leave=it.legs[0].dep;
+  clearInterval(tick);const upd=()=>{const ms=first.dep-Date.now();$('#cd').innerHTML=ms>0?`<span>${esc(tr('countdown'))} ${ICON[first.mode]}</span><b>${fDur(ms)}</b><span>${esc(tr('leave'))}: ${fD(leave,it.legs[0].a.tz)} ${fT(leave,it.legs[0].a.tz)}</span>`:`<b>${esc(tr('started'))}</b>`};upd();tick=setInterval(upd,3e4);
+  const V=visas(it,pass);$('#visa').innerHTML=V.out.map(v=>`<li class="${v.l}">${esc(v.t)}</li>`).join('');
+  const vl=[[tr('official')+' · IATA Travel Centre','https://www.iatatravelcentre.com/']];if(V.ccs.some(c=>SCH.has(c)))vl.push(['ETIAS','https://travel-europe.europa.eu/etias_en']);if(V.ccs.includes('GB'))vl.push(['UK ETA','https://www.gov.uk/guidance/apply-for-an-electronic-travel-authorisation-eta']);if(V.ccs.includes('US'))vl.push(['ESTA','https://esta.cbp.dhs.gov/']);
+  $('#vlinks').innerHTML=vl.map(k=>`<a class="btn" href="${k[1]}" target="_blank" rel="noopener">${esc(k[0])}</a>`).join('');
+  drawMap(it);const A=it.legs[0].a,Z=it.legs.at(-1).b;
+  $('#dacts').innerHTML=`<button class="btn p" id="sv">${esc(trip?tr('saved'):tr('save'))}</button><button class="btn" id="ics">${esc(tr('ics'))}</button><button class="btn" id="cp">${esc(tr('copy'))}</button><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&origin=${A.lat},${A.lon}&destination=${Z.lat},${Z.lon}">${esc(tr('maps'))}</a>`;
+  $('#sv').onclick=()=>{if(trip)return;const t={id:Date.now(),it:ser(it),pass,bought:[...(st.bought||[])]};setTrips([t,...getTrips()]);$('#sv').textContent=tr('saved');renderTrips()};
+  $('#ics').onclick=()=>icsSave(it);$('#cp').onclick=async()=>{const tx=text(it);try{if(navigator.share){await navigator.share({title:'Waylo',text:tx});return}}catch(e){if(e&&e.name==='AbortError')return}try{await navigator.clipboard.writeText(tx);$('#cp').textContent=tr('copied')}catch(e){}};
+  $('#legend').innerHTML=[...new Set(it.legs.map(l=>l.mode))].map(m=>`<span><i class="dot" style="background:${COL(m)}"></i>${esc(m==='local'?tr('local'):m==='stay'?tr('stay'):tr(m))}</span>`).join('')}
+function drawMap(it){const s=$('#map');const pts=[];it.legs.forEach(l=>{pts.push(l.a);pts.push(l.b)});
+  const draw=()=>{const W=s.clientWidth||400,H=s.clientHeight||260,p=34;const la=pts.map(c=>c.lat),lo=pts.map(c=>c.lon);const k=Math.cos((Math.max(...la)+Math.min(...la))/2*R);
+    let x0=Math.min(...lo)*k,x1=Math.max(...lo)*k,y0=Math.min(...la),y1=Math.max(...la);const sp=Math.max(x1-x0,y1-y0,.5);const sc=Math.min((W-2*p)/Math.max(x1-x0,sp*.3),(H-2*p)/Math.max(y1-y0,sp*.3));
+    const cx=(x0+x1)/2,cy=(y0+y1)/2;const P=c=>[W/2+(c.lon*k-cx)*sc,H/2-(c.lat-cy)*sc];let g='';
+    it.legs.forEach(l=>{if(l.a===l.b)return;const[a,b]=[P(l.a),P(l.b)];if(l.mode==='air'){const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2-Math.hypot(b[0]-a[0],b[1]-a[1])*.18;g+=`<path d="M${a} Q${mx},${my} ${b}" fill="none" stroke="${COL('air')}" stroke-width="4" stroke-dasharray="8 6" stroke-linecap="round"/>`}else g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${COL(l.mode)}" stroke-width="5" stroke-linecap="round"/>`});
+    const uniq=[...new Set(pts)];uniq.forEach((c,i)=>{const[x,y]=P(c);const end=c===pts[0]||c===pts.at(-1);g+=`<circle cx="${x}" cy="${y}" r="${end?8:6}" fill="var(--card)" stroke="var(--ink)" stroke-width="3"/>`;
+      if(W>300||end)g+=`<text x="${x}" y="${y-13}" text-anchor="${x<60?'start':x>W-60?'end':'middle'}" font-size="13" font-weight="${end?800:600}" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="4">${esc(nm(c))}</text>`});s.innerHTML=g};
+  draw();if(!s._ro){s._ro=new ResizeObserver(()=>s._draw&&s._draw());s._ro.observe(s)}s._draw=draw}
+function text(it){return it.legs.map(l=>`${ICON[l.mode]} ${fD(l.dep,l.a.tz)} ${fT(l.dep,l.a.tz)} ${l.mode==='stay'?tr('stay')+' '+nm(l.a):l.fp+' ('+nm(l.a)+')'} → ${fT(l.arr,l.b.tz)} ${l.tp?l.tp+' ('+nm(l.b)+')':''}`).join('\n')+`\n≈ ${money(it.price)}`}
+const ser=it=>({kind:it.kind,price:it.price,tr:it.tr,legs:it.legs.map(l=>({...l,a:l.a.id,b:l.b.id,dep:+l.dep,arr:+l.arr}))});
+const des=o=>{const C=Object.fromEntries(CITIES.map(c=>[c.id,c]));const legs=o.legs.map(l=>({...l,a:C[l.a],b:C[l.b],dep:new Date(l.dep),arr:new Date(l.arr)}));return{...o,legs,dep:legs[0].dep,arr:legs.at(-1).arr}};
+let DL=null;
+async function icsSave(it){const f=d=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');const ev=it.legs.filter(l=>l.mode!=='local').map((l,i)=>`BEGIN:VEVENT\r\nUID:waylo-${+l.dep}-${i}\r\nDTSTAMP:${f(new Date())}\r\nDTSTART:${f(l.dep)}\r\nDTEND:${f(l.arr)}\r\nSUMMARY:${ICON[l.mode]} ${l.mode==='stay'?tr('stay')+' '+nm(l.a):nm(l.a)+' → '+nm(l.b)}\r\nLOCATION:${(l.fp||'').replace(/[,;]/g,' ')}\r\nBEGIN:VALARM\r\nTRIGGER:-PT3H\r\nACTION:DISPLAY\r\nDESCRIPTION:Waylo\r\nEND:VALARM\r\nEND:VEVENT`).join('\r\n');
+  const data=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Waylo//EN\r\n${ev}\r\nEND:VCALENDAR\r\n`;
+  try{if(!DL&&window.claude)DL=await window.claude.use('downloads');if(DL){await DL.save({filename:'waylo-trip.ics',data});return}}catch(e){}
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'text/calendar'}));a.download='waylo-trip.ics';a.click()}catch(e){}}
+function renderTrips(){const ts=getTrips();$('#trips').innerHTML=ts.length?ts.map(t=>{const it=des(t.it);const A=it.legs[0].a,Z=it.legs.at(-1).b;const n=it.legs.filter(l=>['air','train','bus','stay'].includes(l.mode)).length;
+  return`<div class="trip"><div><b>${esc(nm(A))} → ${esc(nm(Z))}</b><div class="note">${esc(fD(it.dep,A.tz))} ${fT(it.dep,A.tz)} · ${esc(tr(it.kind))} · ${esc(tr('bought'))} ${(t.bought||[]).length}/${n} · ${it.dep>Date.now()?esc(tr('countdown'))+' '+fDur(it.dep-Date.now()):esc(tr('started'))}</div></div>
+  <div class="acts" style="margin:0"><button class="btn p" data-o="${t.id}">${esc(tr('open'))}</button><button class="btn" data-d="${t.id}">${esc(tr('del'))}</button></div></div>`}).join(''):`<p class="note">${esc(tr('noTrips'))}</p>`;
+  $('#trips').querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{const t=getTrips().find(x=>x.id==b.dataset.o);if(!t)return;$('#detail').classList.remove('hidden');renderDetail(des(t.it),t.pass,t);$('#detail').scrollIntoView({behavior:'smooth'})});
+  $('#trips').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{setTrips(getTrips().filter(x=>x.id!=b.dataset.d));renderTrips()})}
+/* voice input for destination */
+(async()=>{try{if(!window.claude)return;const d=await window.claude.use('dictation');if(!d)return;const mic=$('#mic');mic.classList.remove('hidden');let on=false;
+  d.onFinal(({text})=>{const w=text.toLowerCase();const c=CITIES.find(c=>[c.en,c.ru].some(x=>w.includes(x.toLowerCase().slice(0,Math.max(4,x.length-2)))));if(c){$('#to').value=nm(c)}else $('#to').value=text});
+  d.onState(({state})=>{on=state==='listening';mic.textContent=on?'⏹':'🎤'});
+  mic.onclick=()=>{if(on){d.stop().catch(()=>{});return}d.start().catch(()=>{})}}catch(e){}})();
+/* PWA: offline + install */
+try{if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}
+let deferred=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('#inst').textContent=tr('install');$('#inst').classList.remove('hidden')});
+$('#inst').onclick=async()=>{if(!deferred)return;deferred.prompt();try{await deferred.userChoice}catch(e){}deferred=null;$('#inst').classList.add('hidden')};
+try{const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)&&!navigator.standalone;$('#iosHint').hidden=!ios}catch(e){}
+applyLang();
+if(!$('#from').value){const c=byTz();if(c)$('#from').value=nm(c)}
+$('#to').value=nm(CITIES.find(c=>c.id==='warsaw'));
+}
+</script>
+</body>
+</html>
